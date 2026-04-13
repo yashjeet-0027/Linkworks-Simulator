@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4-Bar Linkage Synthesis Tool</title>
+    <meta name="description" content="Interactive four-bar linkage synthesis tool: place precision points, run auto-solve, and animate the resulting mechanism — all in the browser.">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     LEFT SIDEBAR — Precision Points + Auto-Solve
+     ═══════════════════════════════════════════════════ -->
+<div id="sidebar-left">
+
+    <div id="setup-section" class="panel-section">
+        <h2>1. Precision Points</h2>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+            <label style="font-size:0.75rem; color:var(--text-muted); font-weight:bold;">Synthesis Mode</label>
+            <select id="mode-toggle" class="filter-select" style="width: auto; font-size:0.7rem; padding: 2px 5px;">
+                <option value="4">4-Point</option>
+                <option value="5">5-Point (Reduced)</option>
+            </select>
+        </div>
+        <div class="hint-text" id="setup-hint">Click canvas to place points or enter X/Y below.</div>
+        <div class="coord-row">C₁: <input type="number" id="c1-x" class="coord-input" placeholder="X"> <input type="number" id="c1-y" class="coord-input" placeholder="Y"></div>
+        <div class="coord-row">C₂: <input type="number" id="c2-x" class="coord-input" placeholder="X"> <input type="number" id="c2-y" class="coord-input" placeholder="Y"></div>
+        <div class="coord-row">C₃: <input type="number" id="c3-x" class="coord-input" placeholder="X"> <input type="number" id="c3-y" class="coord-input" placeholder="Y"></div>
+        <div class="coord-row">C₄: <input type="number" id="c4-x" class="coord-input" placeholder="X"> <input type="number" id="c4-y" class="coord-input" placeholder="Y"></div>
+        <div class="coord-row" id="c5-row" style="display:none;">C₅: <input type="number" id="c5-x" class="coord-input" placeholder="X"> <input type="number" id="c5-y" class="coord-input" placeholder="Y"></div>
+        <div class="btn-group" style="margin-top: 8px;">
+            <button id="btn-apply-coords" class="btn-success">Apply Points</button>
+            <button id="btn-new-problem" class="btn-danger">New Problem</button>
+        </div>
+    </div>
+
+    <div id="autosolve-section" class="panel-section scrollable">
+        <h2>2. Auto-Solve Engine</h2>
+
+        <h3>Search Filters</h3>
+        
+        <div class="filters-container">
+            <!-- Max Link Ratio Filter -->
+            <div class="filter-field">
+                <label class="filter-label" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                    <input type="checkbox" id="filter-enable-ratio" checked> Enable Max Link Ratio
+                </label>
+                <div class="slider-wrapper" style="margin-top: 5px; padding-left:24px;">
+                    <div class="slider-header" style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-bottom:5px;">
+                        <span>Max Ratio limit</span>
+                        <span class="slider-val" id="val-max-ratio" style="color:var(--accent); font-weight:bold;">10.0</span>
+                    </div>
+                    <input type="range" id="slider-max-ratio" min="2" max="20" step="0.5" value="10" style="width: 100%; height:4px; accent-color:var(--accent); cursor:pointer;">
+                </div>
+            </div>
+
+            <!-- Strict Sequential Order Filter -->
+            <div class="filter-field">
+                <label class="filter-label" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                    <input type="checkbox" id="filter-enable-order" checked> Strict Sequential Order (1→2→3→4)
+                </label>
+            </div>
+
+            <!-- Min Gamma Filter -->
+            <div class="filter-field">
+                <label class="filter-label" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                    <input type="checkbox" id="filter-enable-gamma" checked> Enable Min Transmission Angle (γ)
+                </label>
+                <div class="slider-wrapper" style="margin-top: 5px; padding-left:24px;">
+                    <div class="slider-header" style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-bottom:5px;">
+                        <span>Range limit</span>
+                        <span id="val-min-gamma" style="color:var(--accent); font-weight:bold;">40°</span>
+                    </div>
+                    <input type="range" id="filter-min-gamma" min="10" max="60" step="1" value="40" style="width: 100%; height:4px; accent-color:var(--accent); cursor:pointer;" oninput="document.getElementById('val-min-gamma').innerText=this.value + '°'">
+                </div>
+            </div>
+
+            <!-- Filter dropdowns -->
+            <div class="filter-row">
+                <div class="filter-field">
+                    <label class="filter-label" for="filter-driver">Driver</label>
+                    <select id="filter-driver" class="filter-select">
+                        <option value="any">Any</option>
+                        <option value="crank">Crank</option>
+                        <option value="rocker">Rocker</option>
+                    </select>
+                </div>
+                <div class="filter-field">
+                    <label class="filter-label" for="filter-driven">Driven</label>
+                    <select id="filter-driven" class="filter-select">
+                        <option value="any">Any</option>
+                        <option value="crank">Crank</option>
+                        <option value="rocker">Rocker</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <button id="btn-autosolve" disabled class="btn-purple btn-block">Run Parameter Search</button>
+
+        <div id="progress-container" style="display: none; margin-top: 10px;">
+            <div class="progress-track">
+                <div id="progress-bar"></div>
+            </div>
+            <div class="progress-row">
+                <span id="autosolve-status"></span>
+                <button id="btn-cancel-search" class="btn-danger btn-sm" style="display:none;">Cancel</button>
+            </div>
+        </div>
+
+        <div id="autosolve-results"></div>
+    </div>
+
+</div>
+
+<!-- Left splitter -->
+<div id="splitter-left" class="splitter" title="Drag to resize"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     CENTRAL WORKSPACE — Canvas + Bottom Inspector
+     ═══════════════════════════════════════════════════ -->
+<div id="workspace">
+
+    <!-- Canvas area -->
+    <div id="canvas-area">
+        <div id="view-hints">Mouse wheel to Zoom • Click &amp; Drag to Pan</div>
+        <div id="warning-box"></div>
+
+        <div id="export-widget">
+            <button id="btn-export" disabled class="btn-success">⬇ Export JSON</button>
+        </div>
+
+        <div id="zoom-widget">
+            <label for="slider-zoom">Zoom: <span id="val-zoom">100</span>%</label>
+            <input type="range" id="slider-zoom" min="-100" max="100" value="0">
+            <button id="btn-autofit">Auto Fit</button>
+        </div>
+
+        <div id="legend-widget">
+            <button id="btn-toggle-legend">☰ Legend</button>
+            <div id="legend-box" style="display: none;">
+                <div id="legend-content"></div>
+            </div>
+        </div>
+
+        <div id="animation-palette">
+            <h3>Kinematic Analysis</h3>
+            <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); margin-bottom: 5px;" id="live-gamma">Live γ: --°</div>
+            <div class="insp-slider-row" style="display:flex; flex-direction:column; gap:4px;">
+                <label for="slider-speed">Speed: <span id="val-speed">50</span>%</label>
+                <input type="range" id="slider-speed" min="1" max="100" value="50">
+            </div>
+            <div class="btn-group">
+                <button id="btn-play-pause" class="btn-success">Play Simulation</button>
+                <button id="btn-stop-anim" class="btn-danger" style="flex:0.6;">Reset</button>
+            </div>
+            <button id="btn-switch-branch" style="background:#4f46e5; color:#fff; border-color:#4f46e5; opacity:0.45; cursor:not-allowed;" disabled>⇄ Switch Branch</button>
+        </div>
+
+        <canvas id="mechCanvas"></canvas>
+    </div>
+
+    <!-- Inspector splitter (between canvas and inspector) -->
+    <div id="splitter-bottom" class="splitter splitter-h" title="Drag to resize"></div>
+
+    <!-- ═══════════════════════════════════════════════════
+         PROPERTIES INSPECTOR — Bottom panel
+         ═══════════════════════════════════════════════════ -->
+    <div id="inspector">
+
+        <!-- Group: Pivot Coordinates -->
+        <div class="insp-group" id="insp-pivots">
+            <div class="insp-group-title">Fixed Pivots</div>
+            <div class="insp-fields">
+                <div class="insp-field-row">
+                    <span class="insp-label">H<sub>R</sub></span>
+                    <label class="insp-sub-label" for="hr-x">x</label>
+                    <input type="number" id="hr-x" class="insp-input" placeholder="—" step="1">
+                    <label class="insp-sub-label" for="hr-y">y</label>
+                    <input type="number" id="hr-y" class="insp-input" placeholder="—" step="1">
+                </div>
+                <div class="insp-field-row">
+                    <span class="insp-label">H<sub>C</sub></span>
+                    <label class="insp-sub-label" for="hc-x">x</label>
+                    <input type="number" id="hc-x" class="insp-input" placeholder="—" step="1">
+                    <label class="insp-sub-label" for="hc-y">y</label>
+                    <input type="number" id="hc-y" class="insp-input" placeholder="—" step="1">
+                </div>
+            </div>
+        </div>
+
+        <div class="insp-divider"></div>
+
+        <!-- Group: Radius R -->
+        <div class="insp-group" id="slider-R-group" style="display:none;">
+            <div class="insp-group-title">Radius R</div>
+            <div class="insp-slider-row">
+                <input type="range" id="slider-R" min="10" max="2000" value="100">
+                <span id="val-R" class="insp-val">100</span>
+                <span class="insp-unit">px</span>
+            </div>
+        </div>
+
+        <div class="insp-divider" id="div-R" style="display:none;"></div>
+
+        <!-- Group: Radius r -->
+        <div class="insp-group" id="slider-r-group" style="display:none;">
+            <div class="insp-group-title">Radius r</div>
+            <div class="insp-slider-row">
+                <input type="range" id="slider-r" min="10" max="2000" value="100">
+                <span id="val-r" class="insp-val">100</span>
+                <span class="insp-unit">px</span>
+            </div>
+        </div>
+
+        <div class="insp-divider" id="div-r" style="display:none;"></div>
+
+        <!-- Group: A-point configurations -->
+        <div class="insp-group" id="config-panel" style="display:none;">
+            <div class="insp-group-title">Configurations (Aᵢ)</div>
+            <div class="insp-cfg-row">
+                <button id="btn-cfg-a1" class="cfg-btn">A₁: ●1 / 2</button>
+                <button id="btn-cfg-a2" class="cfg-btn" disabled>A₂: ●1 / 2</button>
+                <button id="btn-cfg-a3" class="cfg-btn">A₃: ●1 / 2</button>
+                <button id="btn-cfg-a4" class="cfg-btn" disabled>A₄: ●1 / 2</button>
+            </div>
+            <div id="config-circuit-check"></div>
+        </div>
+
+    </div><!-- /#inspector -->
+
+</div><!-- /#workspace -->
+
+<!-- Right splitter -->
+<div id="splitter-right" class="splitter" title="Drag to resize"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     RIGHT SIDEBAR — Manual Construction Steps
+     ═══════════════════════════════════════════════════ -->
+<div id="right-sidebar">
+
+    <div id="manual-section" class="panel-section scrollable">
+        <h2>3. Manual Construction</h2>
+        <div id="steps-container"></div>
+
+        <div id="controls">
+            <button id="btn-next" class="btn-primary btn-block">Next Step</button>
+            <button id="btn-toggle-const" style="display:none;" class="btn-teal btn-block">Hide Construction</button>
+            <div class="btn-group">
+                <button id="btn-back">Step Back</button>
+                <button id="btn-reset">Reset Construction</button>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /#right-sidebar -->
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
